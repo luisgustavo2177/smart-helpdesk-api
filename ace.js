@@ -17,9 +17,9 @@
 */
 
 /**
- * Register hook to process TypeScript files using @poppinss/ts-exec
+ * Register hook to process TypeScript files using ts-node-maintained
  */
-import '@poppinss/ts-exec'
+import 'ts-node-maintained/register/esm'
 
 /**
  * Import ace console entrypoint
