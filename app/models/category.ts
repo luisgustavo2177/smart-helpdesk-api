@@ -4,6 +4,8 @@ import { BaseModel } from '#models/base_model'
 import Ticket from '#models/ticket'
 
 export default class Category extends BaseModel {
+  static entityName = 'Categoria'
+
   @column({ isPrimary: true })
   declare id: number
 

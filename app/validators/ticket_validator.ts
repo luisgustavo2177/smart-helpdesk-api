@@ -7,6 +7,7 @@ type TicketValidatorShape = {
   categoryId: z.ZodOptional<z.ZodNumber>
   priority: z.ZodOptional<z.ZodEnum<['LOW', 'MEDIUM', 'HIGH']>>
   assigneeId: z.ZodOptional<z.ZodNullable<z.ZodNumber>>
+  status: z.ZodOptional<z.ZodEnum<['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']>>
 }
 
 /**
@@ -26,5 +27,6 @@ export default class TicketValidator extends BaseValidator<TicketValidatorShape>
     categoryId: z.number().int().positive().optional(),
     priority: z.enum(['LOW', 'MEDIUM', 'HIGH']).optional(),
     assigneeId: z.number().int().positive().nullable().optional(),
+    status: z.enum(['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED']).optional(),
   }
 }
