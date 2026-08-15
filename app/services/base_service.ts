@@ -248,18 +248,12 @@ export abstract class BaseService<
       .pojo()
   }
 
-  async store({ data, transaction, ctx }: StoreServiceProps<T>) {
+  async store({ data, transaction }: StoreServiceProps<T>) {
     try {
       const validatedData = this.validator.validateCreate(data)
       const newEntity = new this.model() as InstanceType<T>
 
-      const dataToMerge: Record<string, unknown> = { ...validatedData }
-
-      if (ctx?.user && this.model.$hasColumn('profileId')) {
-        dataToMerge.profileId = ctx.user.uuid?.toString()
-      }
-
-      newEntity.merge(dataToMerge as Partial<ModelAttributes<InstanceType<T>>>)
+      newEntity.merge(validatedData as Partial<ModelAttributes<InstanceType<T>>>)
 
       if (transaction) {
         newEntity.useTransaction(transaction)
@@ -281,7 +275,7 @@ export abstract class BaseService<
     }
   }
 
-  async update({ id, data, transaction, ctx }: UpdateServiceProps<T>) {
+  async update({ id, data, transaction }: UpdateServiceProps<T>) {
     try {
       const foundEntity = await this.model.find(id, { client: transaction })
       if (!foundEntity) {
@@ -293,13 +287,7 @@ export abstract class BaseService<
 
       const validatedData = this.validator.validateUpdate(data)
 
-      const dataToMerge: Record<string, unknown> = { ...validatedData }
-
-      if (ctx?.user && this.model.$hasColumn('profileId')) {
-        dataToMerge.profileId = ctx.user.uuid?.toString()
-      }
-
-      foundEntity.merge(dataToMerge as Partial<ModelAttributes<InstanceType<T>>>)
+      foundEntity.merge(validatedData as Partial<ModelAttributes<InstanceType<T>>>)
       if (transaction) foundEntity.useTransaction(transaction)
       await foundEntity.save()
 

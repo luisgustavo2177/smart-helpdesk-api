@@ -1,4 +1,6 @@
 import router from '@adonisjs/core/services/router'
+import authRouter from './auth_router.js'
+import userRouter from './user_router.js'
 
 // Rota de teste
 router.get('/', async () => {
@@ -11,7 +13,9 @@ router.get('/', async () => {
 // Agrupando todas as rotas da API
 router
   .group(() => {
-    // Autenticação e demais rotas de domínio (chamados, comentários, indicadores)
-    // entram aqui nas próximas etapas.
+    router.group(authRouter)
+    router.group(userRouter)
+
+    // Chamados, comentários e indicadores entram aqui nas próximas etapas.
   })
   .prefix('/api/v1')
