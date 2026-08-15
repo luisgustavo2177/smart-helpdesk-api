@@ -22,6 +22,13 @@ export default await Env.create(new URL('../', import.meta.url), {
   APP_KEY: Env.schema.string(),
   APP_URL: Env.schema.string({ format: 'url', tld: false }),
 
+  // Auth (JWT)
+  SECRET_JWT: Env.schema.string(),
+  JWT_EXPIRES_IN: Env.schema.string(),
+
+  // Triagem por IA (Gemini) — opcional: sem chave, cai para a heurística
+  GEMINI_API_KEY: Env.schema.string.optional(),
+
   // Database
   DB_HOST: Env.schema.string({ format: 'host' }),
   DB_PORT: Env.schema.number(),

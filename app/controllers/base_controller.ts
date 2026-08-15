@@ -6,7 +6,7 @@ import { ZodError } from 'zod'
 export abstract class BaseController<TService extends BaseService<any, any>> {
   protected constructor(protected service: TService) {}
 
-  private handleZodError(error: ZodError, response: HttpContext['response']) {
+  protected handleZodError(error: ZodError, response: HttpContext['response']) {
     const formattedErrors = error.errors.map((err) => ({
       field: err.path.join('.'),
       message: err.message,
@@ -21,7 +21,7 @@ export abstract class BaseController<TService extends BaseService<any, any>> {
     })
   }
 
-  private handleDuplicateKeyError(error: Error, response: HttpContext['response']) {
+  protected handleDuplicateKeyError(error: Error, response: HttpContext['response']) {
     const constraintMatch = error.message.match(/constraint "(\w+)"/)
     const detailMatch = error.message.match(/Key \(([^)]+)\)/)
 
@@ -49,7 +49,7 @@ export abstract class BaseController<TService extends BaseService<any, any>> {
     })
   }
 
-  private handleForeignKeyError(error: any, response: HttpContext['response']) {
+  protected handleForeignKeyError(error: any, response: HttpContext['response']) {
     const detailMatch =
       error.detail?.match(/Key \(([^)]+)\)/) || error.message.match(/Key \(([^)]+)\)/)
     const constraintMatch = error.message.match(/constraint "(\w+)"/)
@@ -77,7 +77,7 @@ export abstract class BaseController<TService extends BaseService<any, any>> {
     })
   }
 
-  private handleGenericError(error: any, response: HttpContext['response'], action: string) {
+  protected handleGenericError(error: any, response: HttpContext['response'], action: string) {
     console.error(`Erro ao ${action} ${this.service.getEntityName()}:`, error)
     return response.status(500).json({
       messages: [`Erro ao ${action} ${this.service.getEntityName()}`],
