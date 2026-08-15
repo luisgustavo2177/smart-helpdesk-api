@@ -23,11 +23,11 @@ export default class TicketSeeder extends BaseSeeder {
       return
     }
 
-    const admin = await User.findByOrFail('email', 'admin@example.com')
-    const admin2 = await User.findByOrFail('email', 'admin2@example.com')
-    const requester1 = await User.findByOrFail('email', 'solicitante1@example.com')
-    const requester2 = await User.findByOrFail('email', 'solicitante2@example.com')
-    const requester3 = await User.findByOrFail('email', 'solicitante3@example.com')
+    const admin = await User.findByOrFail('email', 'admin@helpdesk.com')
+    const admin2 = await User.findByOrFail('email', 'admin2@helpdesk.com')
+    const requester1 = await User.findByOrFail('email', 'solicitante1@helpdesk.com')
+    const requester2 = await User.findByOrFail('email', 'solicitante2@helpdesk.com')
+    const requester3 = await User.findByOrFail('email', 'solicitante3@helpdesk.com')
 
     const networkCategory = await Category.findByOrFail('name', 'Rede')
     const hardwareCategory = await Category.findByOrFail('name', 'Hardware')

@@ -1,4 +1,5 @@
 import type { HttpContext } from '@adonisjs/core/http'
+import { DateTime } from 'luxon'
 import Ticket from '#models/ticket'
 import TicketStatusHistory from '#models/ticket_status_history'
 import TicketValidator from '#validators/ticket_validator'
@@ -16,6 +17,7 @@ import {
 } from './base_service.js'
 
 const TICKET_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const
+const TICKET_PRIORITIES = ['LOW', 'MEDIUM', 'HIGH'] as const
 
 export type TicketStatsProps = {
   filters?: Record<string, unknown>
@@ -79,10 +81,12 @@ export default class TicketService extends BaseService<typeof Ticket, TicketVali
   }
 
   /**
-   * Contagem de chamados por status (e o percentual de cada um sobre o
-   * total) respeitando os mesmos filtros/busca/escopo por papel da listagem
-   * — usado pelos cards de resumo do front, que não devem recalcular nada
-   * disso sozinhos.
+   * Contagem de chamados por status e por prioridade (com percentual sobre o
+   * total), mais a lista dos chamados ALTA+ABERTO — respeitando os mesmos
+   * filtros/busca/escopo por papel da listagem. É o snapshot usado tanto
+   * pelos cards de resumo (estáticos, na primeira renderização) quanto pelo
+   * indicador em tempo real do front, que faz *poll* nesse mesmo endpoint —
+   * o front não recalcula nem soma nada sozinho.
    */
   async stats({ filters, search, ctx }: TicketStatsProps) {
     const scopedFilters =
@@ -98,24 +102,64 @@ export default class TicketService extends BaseService<typeof Ticket, TicketVali
     // agregado via `.pojo()` contaria chamados cancelados. Refazendo aqui à mão.
     const rows = await query
       .whereNull('deleted_at')
-      .select('status')
+      .select('status', 'priority')
       .count('* as count')
-      .groupBy('status')
-      .pojo<{ status: (typeof TICKET_STATUSES)[number]; count: string | number }>()
+      .groupBy('status', 'priority')
+      .pojo<{
+        status: (typeof TICKET_STATUSES)[number]
+        priority: (typeof TICKET_PRIORITIES)[number]
+        count: string | number
+      }>()
 
-    const countsByStatus = new Map(rows.map((row) => [row.status, Number(row.count)]))
-    const total = [...countsByStatus.values()].reduce((sum, count) => sum + count, 0)
+    const countsByStatus = new Map<string, number>()
+    const countsByPriority = new Map<string, number>()
+    let total = 0
+
+    for (const row of rows) {
+      const count = Number(row.count)
+      total += count
+      countsByStatus.set(row.status, (countsByStatus.get(row.status) ?? 0) + count)
+      countsByPriority.set(row.priority, (countsByPriority.get(row.priority) ?? 0) + count)
+    }
+
+    const highPriorityOpenCount =
+      rows.find((row) => row.status === 'OPEN' && row.priority === 'HIGH')?.count ?? 0
+
+    const highPriorityOpenQuery = this.model.query()
+    this.applyFilters(highPriorityOpenQuery, scopedFilters as never)
+    const highPriorityOpenTickets = await highPriorityOpenQuery
+      .whereNull('deleted_at')
+      .where('status', 'OPEN')
+      .where('priority', 'HIGH')
+      .orderBy('created_at', 'desc')
+      .limit(5)
+      .select('id', 'title', 'created_at')
+      .pojo<{ id: number; title: string; created_at: string }>()
+
+    const percentageOf = (count: number) =>
+      total > 0 ? Number(((count / total) * 100).toFixed(2)) : 0
 
     return {
       total,
-      statuses: TICKET_STATUSES.map((status) => {
-        const count = countsByStatus.get(status) ?? 0
-        return {
-          status,
-          count,
-          percentage: total > 0 ? Number(((count / total) * 100).toFixed(2)) : 0,
-        }
-      }),
+      generatedAt: DateTime.now().toISO(),
+      statuses: TICKET_STATUSES.map((status) => ({
+        status,
+        count: countsByStatus.get(status) ?? 0,
+        percentage: percentageOf(countsByStatus.get(status) ?? 0),
+      })),
+      priorities: TICKET_PRIORITIES.map((priority) => ({
+        priority,
+        count: countsByPriority.get(priority) ?? 0,
+        percentage: percentageOf(countsByPriority.get(priority) ?? 0),
+      })),
+      highPriorityOpen: {
+        count: Number(highPriorityOpenCount),
+        tickets: highPriorityOpenTickets.map((ticket) => ({
+          id: ticket.id,
+          title: ticket.title,
+          createdAt: ticket.created_at,
+        })),
+      },
     }
   }
 
