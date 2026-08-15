@@ -6,6 +6,10 @@ import User from '#models/user'
  * usuário; REQUESTER só enxerga/gerencia o próprio registro.
  */
 export default class UserPolicy extends BasePolicy {
+  create(actingUser: User): boolean {
+    return actingUser.role === 'ADMIN'
+  }
+
   viewList(actingUser: User): boolean {
     return actingUser.role === 'ADMIN'
   }

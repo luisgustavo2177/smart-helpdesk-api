@@ -5,7 +5,7 @@ import { middleware } from '#start/kernel'
 export default function userRouter() {
   router
     .group(() => {
-      router.resource('users', UserController).only(['index', 'show', 'update', 'destroy'])
+      router.resource('users', UserController).only(['index', 'store', 'show', 'update', 'destroy'])
     })
     .use([middleware.auth()])
 }

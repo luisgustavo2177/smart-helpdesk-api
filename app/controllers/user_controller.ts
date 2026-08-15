@@ -18,6 +18,16 @@ export default class UserController extends BaseController<UserService> {
     return super.index(ctx)
   }
 
+  async store(ctx: HttpContext) {
+    if (await ctx.bouncer.with('UserPolicy').denies('create')) {
+      throw new AppError({
+        messages: ['Apenas ADMIN pode criar usuários.'],
+        statusCode: 403,
+      })
+    }
+    return super.store(ctx)
+  }
+
   async show(ctx: HttpContext) {
     const { request, response } = ctx
     try {
