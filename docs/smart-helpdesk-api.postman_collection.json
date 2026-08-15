@@ -1,0 +1,1216 @@
+{
+  "info": {
+    "name": "Smart HelpDesk API",
+    "description": "Collection de testes para a Smart HelpDesk API (AdonisJS v6 + PostgreSQL).\n\n**Base URL:** `http://localhost:3333`\n**Prefixo das rotas:** `/api/v1`\n\n> Defina a variável de ambiente `base_url` como `http://localhost:3333` e rode `POST /auth/login` — o script de teste salva o JWT automaticamente na variável `token`.\n\n**Importante:** o e-mail de qualquer usuário (cadastro público ou criado pelo ADMIN) precisa terminar em `@helpdesk.com` — é uma regra de validação do domínio, não só de unicidade.\n\nUse as credenciais de teste do seed (ver README) para logar direto sem precisar cadastrar ninguém: `admin@helpdesk.com` / `password123` (ADMIN) e `solicitante1@helpdesk.com` / `password123` (REQUESTER).",
+    "version": "1.1.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3333", "type": "string" },
+    { "key": "token", "value": "", "type": "string" },
+    { "key": "user_id", "value": "1", "type": "string" },
+    { "key": "ticket_id", "value": "1", "type": "string" },
+    { "key": "category_id", "value": "1", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "item": [
+        {
+          "name": "GET / - Status da API",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": { "raw": "{{base_url}}/", "host": ["{{base_url}}"], "path": [""] },
+            "description": "Verifica se a API está no ar. Retorna nome e versão. Não exige token."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"hello\": \"Smart Helpdesk API\",\n  \"version\": \"1.0.0\"\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "POST /auth/register - Cadastro público (sempre REQUESTER)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) pm.collectionVariables.set('token', json.token);",
+                  "  if (json.data && json.data.id) pm.collectionVariables.set('user_id', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"João da Silva\",\n  \"email\": \"joao.silva@helpdesk.com\",\n  \"password\": \"Senha@1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "register"]
+            },
+            "description": "Cadastra um novo usuário. Não existe campo `role` no corpo — o cadastro público **sempre** cria um `REQUESTER` (o `AuthController.register` ignora qualquer `role` enviado e força `REQUESTER`); só um ADMIN pode criar outro ADMIN, via `POST /users`.\n\nO e-mail precisa terminar em `@helpdesk.com` (validado no schema, não só na unicidade do banco).\n\nJá retorna o token — o cadastro loga o usuário automaticamente."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": {\n    \"id\": 8,\n    \"name\": \"João da Silva\",\n    \"email\": \"joao.silva@helpdesk.com\",\n    \"role\": \"REQUESTER\",\n    \"createdAt\": \"2026-08-15T14:00:00.000-03:00\",\n    \"updatedAt\": \"2026-08-15T14:00:00.000-03:00\"\n  },\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"message\": \"Cadastro realizado com sucesso\"\n}"
+            },
+            {
+              "name": "422 Unprocessable - Domínio de e-mail inválido",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "body": "{\n  \"messages\": [\"O e-mail deve ser do domínio @helpdesk.com\"],\n  \"status\": 422\n}"
+            },
+            {
+              "name": "409 Conflict - E-mail duplicado",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"messages\": [\"Já existe um usuário cadastrado com este e-mail\"],\n  \"status\": 409\n}"
+            },
+            {
+              "name": "422 Unprocessable - Campo obrigatório faltando",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "body": "{\n  \"messages\": [\"O nome é obrigatório\"],\n  \"status\": 422\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /auth/login - Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) pm.collectionVariables.set('token', json.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@helpdesk.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "Autentica e retorna um JWT. O script de teste salva o token na variável `token`.\n\nUse as credenciais do seed pra testar direto: `admin@helpdesk.com` / `password123` (ADMIN) ou `solicitante1@helpdesk.com` / `password123` (REQUESTER)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": 1,\n    \"name\": \"Admin Teste\",\n    \"email\": \"admin@helpdesk.com\",\n    \"role\": \"ADMIN\",\n    \"createdAt\": \"2026-08-15T10:00:00.000-03:00\",\n    \"updatedAt\": \"2026-08-15T10:00:00.000-03:00\"\n  },\n  \"token\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\"\n}"
+            },
+            {
+              "name": "401 Unauthorized - Credenciais inválidas",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"messages\": [\"E-mail ou senha inválidos.\"],\n  \"status\": 401\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /auth/me - Usuário autenticado",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "me"]
+            },
+            "description": "Retorna o usuário dono do token. Útil pra confirmar que o token ainda é válido e ver o papel (`role`) atual."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": 1,\n    \"name\": \"Admin Teste\",\n    \"email\": \"admin@helpdesk.com\",\n    \"role\": \"ADMIN\",\n    \"createdAt\": \"2026-08-15T10:00:00.000-03:00\",\n    \"updatedAt\": \"2026-08-15T10:00:00.000-03:00\"\n  }\n}"
+            },
+            {
+              "name": "401 Unauthorized - Sem token / token inválido",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"messages\": [\"Token inválido ou expirado. Por favor, autentique-se novamente.\"],\n  \"status\": 401\n}"
+            }
+          ]
+        }
+      ],
+      "description": "Não existe endpoint de logout — o JWT é stateless (sem blacklist/sessão no servidor). \"Deslogar\" é só descartar o token no cliente (é isso que o front faz: apaga o cookie httpOnly)."
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "GET /users - Listar usuários (ADMIN)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users?page=1&limit=10&order=name",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "order", "value": "name", "description": "Prefixo '-' = DESC, ex: -createdAt" },
+                { "key": "search", "value": "", "description": "Busca fuzzy por nome/e-mail", "disabled": true },
+                { "key": "role", "value": "REQUESTER", "description": "ADMIN | REQUESTER", "disabled": true }
+              ]
+            },
+            "description": "Só ADMIN pode listar (`UserPolicy.viewList`) — REQUESTER recebe 403."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"meta\": { \"total\": 8, \"perPage\": 10, \"currentPage\": 1, \"lastPage\": 1, \"firstPage\": 1 },\n  \"data\": [\n    { \"id\": 1, \"name\": \"Admin Teste\", \"email\": \"admin@helpdesk.com\", \"role\": \"ADMIN\" },\n    { \"id\": 3, \"name\": \"Solicitante Um\", \"email\": \"solicitante1@helpdesk.com\", \"role\": \"REQUESTER\" }\n  ]\n}"
+            },
+            {
+              "name": "403 Forbidden - Não é ADMIN",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"messages\": [\"Você não tem permissão para listar usuários.\"],\n  \"status\": 403\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /users/:id - Buscar usuário",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}"]
+            },
+            "description": "ADMIN vê qualquer usuário; REQUESTER só o próprio registro (`UserPolicy.view`)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": { \"id\": 1, \"name\": \"Admin Teste\", \"email\": \"admin@helpdesk.com\", \"role\": \"ADMIN\" }\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"messages\": [\"Usuário não encontrado(a)\"],\n  \"status\": 404\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /users - Criar usuário (ADMIN)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.data && json.data.id) pm.collectionVariables.set('user_id', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Novo Colaborador\",\n  \"email\": \"novo.colaborador@helpdesk.com\",\n  \"password\": \"Senha@1234\",\n  \"role\": \"REQUESTER\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users"]
+            },
+            "description": "Diferente de `/auth/register`, aqui `role` é aceito de verdade — só que só ADMIN pode chamar este endpoint (`UserPolicy.create`). Precisa de token de ADMIN (faça login com `admin@helpdesk.com` antes). E-mail também precisa terminar em `@helpdesk.com`."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": {\n    \"id\": 9,\n    \"name\": \"Novo Colaborador\",\n    \"email\": \"novo.colaborador@helpdesk.com\",\n    \"role\": \"REQUESTER\",\n    \"createdAt\": \"2026-08-15T16:00:00.000-03:00\",\n    \"updatedAt\": \"2026-08-15T16:00:00.000-03:00\"\n  },\n  \"message\": \"Usuário criado(a) com sucesso\"\n}"
+            },
+            {
+              "name": "403 Forbidden - Quem chama não é ADMIN",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"messages\": [\"Apenas ADMIN pode criar usuários.\"],\n  \"status\": 403\n}"
+            },
+            {
+              "name": "422 Unprocessable - Domínio de e-mail inválido",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "body": "{\n  \"messages\": [\"email: O e-mail deve ser do domínio @helpdesk.com\"],\n  \"status\": 422,\n  \"type\": \"ValidationError\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "PUT /users/:id - Atualizar usuário",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin Teste Atualizado\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}"]
+            },
+            "description": "Campos opcionais (partial update). ADMIN atualiza qualquer um; REQUESTER só o próprio registro. Só ADMIN pode incluir `role` no corpo — se um REQUESTER tentar mandar `role`, recebe 403, mesmo atualizando o próprio registro (evita auto-promoção)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": { \"id\": 1, \"name\": \"Admin Teste Atualizado\", \"email\": \"admin@helpdesk.com\", \"role\": \"ADMIN\" },\n  \"message\": \"Usuário atualizado(a) com sucesso\"\n}"
+            },
+            {
+              "name": "403 Forbidden - REQUESTER tentando alterar o próprio papel",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"messages\": [\"Você não tem permissão para alterar o papel do usuário.\"],\n  \"status\": 403\n}"
+            }
+          ]
+        },
+        {
+          "name": "DELETE /users/:id - Remover usuário (ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/users/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "users", "{{user_id}}"]
+            },
+            "description": "Só ADMIN remove (soft delete)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"message\": \"Usuário deletado(a) com sucesso\",\n  \"data\": { \"id\": 9, \"name\": \"Novo Colaborador\", \"deletedAt\": \"2026-08-15T16:10:00.000-03:00\" }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Categories",
+      "item": [
+        {
+          "name": "GET /categories - Listar categorias",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/categories?page=1&limit=20&order=name",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "categories"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "20" },
+                { "key": "order", "value": "name" },
+                { "key": "status", "value": "true", "description": "Filtrar só ativas/inativas", "disabled": true },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Leitura liberada pra qualquer usuário autenticado. Categorias do seed: Rede, Hardware, Software, Acesso, Outros."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"meta\": { \"total\": 5, \"perPage\": 20, \"currentPage\": 1, \"lastPage\": 1, \"firstPage\": 1 },\n  \"data\": [\n    { \"id\": 5, \"name\": \"Acesso\", \"status\": true },\n    { \"id\": 2, \"name\": \"Hardware\", \"status\": true },\n    { \"id\": 4, \"name\": \"Outros\", \"status\": true },\n    { \"id\": 1, \"name\": \"Rede\", \"status\": true },\n    { \"id\": 3, \"name\": \"Software\", \"status\": true }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /categories/:id - Buscar categoria",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "categories", "{{category_id}}"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": { \"id\": 1, \"name\": \"Rede\", \"status\": true, \"createdAt\": \"2026-08-10T12:00:00.000-03:00\", \"updatedAt\": \"2026-08-10T12:00:00.000-03:00\" }\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /categories - Criar categoria (ADMIN)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.data && json.data.id) pm.collectionVariables.set('category_id', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Impressoras\",\n  \"status\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "categories"]
+            },
+            "description": "Só ADMIN cria (`CategoryPolicy.manage`). `status` é opcional (default `true`)."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": { \"id\": 6, \"name\": \"Impressoras\", \"status\": true },\n  \"message\": \"Categoria criado(a) com sucesso\"\n}"
+            },
+            {
+              "name": "403 Forbidden - Não é ADMIN",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"messages\": [\"Apenas ADMIN pode gerenciar categorias.\"],\n  \"status\": 403\n}"
+            }
+          ]
+        },
+        {
+          "name": "PUT /categories/:id - Atualizar categoria (ADMIN)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": false\n}" },
+            "url": {
+              "raw": "{{base_url}}/api/v1/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "categories", "{{category_id}}"]
+            },
+            "description": "Só ADMIN. Útil pra desativar uma categoria sem apagar o histórico de chamados que a usam."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": { \"id\": 6, \"name\": \"Impressoras\", \"status\": false },\n  \"message\": \"Categoria atualizado(a) com sucesso\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "DELETE /categories/:id - Remover categoria (ADMIN)",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/categories/{{category_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "categories", "{{category_id}}"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"message\": \"Categoria deletado(a) com sucesso\",\n  \"data\": { \"id\": 6, \"name\": \"Impressoras\" }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Tickets",
+      "item": [
+        {
+          "name": "GET /tickets - Listar (ADMIN vê tudo, REQUESTER só os próprios)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets?page=1&limit=10&order=-createdAt",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "limit", "value": "10" },
+                { "key": "order", "value": "-createdAt", "description": "prefixo '-' = DESC. Também aceita 'category', 'requester', 'assignee' (ordena pelo nome via join)" },
+                { "key": "search", "value": "", "description": "Busca fuzzy por título/descrição", "disabled": true },
+                { "key": "status", "value": "OPEN", "description": "OPEN | IN_PROGRESS | RESOLVED | CLOSED", "disabled": true },
+                { "key": "priority", "value": "HIGH", "description": "LOW | MEDIUM | HIGH", "disabled": true },
+                { "key": "categoryId", "value": "1", "disabled": true },
+                { "key": "requesterId", "value": "3", "description": "só ADMIN enxerga chamados de outro solicitante", "disabled": true },
+                { "key": "assigneeId", "value": "1", "disabled": true }
+              ]
+            },
+            "description": "REQUESTER só vê os próprios chamados, independente do que filtrar (escopo aplicado no service, não é um filtro que dá pra contornar). Filtros por id aceitam múltiplos valores separados por vírgula, ex: `categoryId=1,2,3`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"meta\": { \"total\": 1, \"perPage\": 10, \"currentPage\": 1, \"lastPage\": 1, \"firstPage\": 1 },\n  \"data\": [\n    {\n      \"id\": 1,\n      \"title\": \"Sem acesso à internet no setor financeiro\",\n      \"description\": \"Desde hoje de manhã os computadores do setor financeiro não conseguem acessar a internet nem a rede interna.\",\n      \"categoryId\": 1,\n      \"suggestedCategoryId\": 1,\n      \"priority\": \"HIGH\",\n      \"suggestedPriority\": \"HIGH\",\n      \"classificationOrigin\": \"AI\",\n      \"status\": \"OPEN\",\n      \"requesterId\": 3,\n      \"assigneeId\": null,\n      \"createdAt\": \"2026-08-15T07:00:00.000-03:00\",\n      \"updatedAt\": \"2026-08-15T07:00:00.000-03:00\",\n      \"category\": { \"id\": 1, \"name\": \"Rede\" },\n      \"requester\": { \"id\": 3, \"name\": \"Solicitante Um\", \"email\": \"solicitante1@helpdesk.com\" },\n      \"assignee\": null\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /tickets/stats - Indicadores em tempo real",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "stats"],
+              "query": [
+                { "key": "priority", "value": "HIGH", "disabled": true },
+                { "key": "categoryId", "value": "1", "disabled": true },
+                { "key": "requesterId", "value": "3", "disabled": true },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Contagem e percentual por status e por prioridade, mais a lista dos chamados ALTA+ABERTO (até 5), respeitando o mesmo escopo por papel da listagem. Aceita os mesmos filtros de `GET /tickets`, exceto `status` (é justamente a quebra por status). É nesse endpoint que o front faz *polling* curto (a cada 8s) pro indicador em tempo real."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"total\": 14,\n    \"generatedAt\": \"2026-08-15T14:27:33.011-03:00\",\n    \"statuses\": [\n      { \"status\": \"OPEN\", \"count\": 7, \"percentage\": 50 },\n      { \"status\": \"IN_PROGRESS\", \"count\": 4, \"percentage\": 28.57 },\n      { \"status\": \"RESOLVED\", \"count\": 1, \"percentage\": 7.14 },\n      { \"status\": \"CLOSED\", \"count\": 2, \"percentage\": 14.29 }\n    ],\n    \"priorities\": [\n      { \"priority\": \"LOW\", \"count\": 5, \"percentage\": 35.71 },\n      { \"priority\": \"MEDIUM\", \"count\": 4, \"percentage\": 28.57 },\n      { \"priority\": \"HIGH\", \"count\": 5, \"percentage\": 35.71 }\n    ],\n    \"highPriorityOpen\": {\n      \"count\": 1,\n      \"tickets\": [\n        { \"id\": 1, \"title\": \"Sem acesso à internet no setor financeiro\", \"createdAt\": \"2026-08-15T07:00:00.000Z\" }\n      ]\n    }\n  }\n}"
+            }
+          ]
+        },
+        {
+          "name": "GET /tickets/report - Exportar relatório .xlsx",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/report",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "report"],
+              "query": [
+                { "key": "status", "value": "OPEN", "disabled": true },
+                { "key": "priority", "value": "HIGH", "disabled": true },
+                { "key": "categoryId", "value": "1", "disabled": true },
+                { "key": "requesterId", "value": "3", "disabled": true },
+                { "key": "search", "value": "", "disabled": true }
+              ]
+            },
+            "description": "Gera um `.xlsx` (binário — no Postman, use \"Send and Download\") com aba \"Chamados\" (respeitando todos os filtros, ordenado por data de criação) e aba \"Resumo\" (mesma contagem/percentual do `/tickets/stats`, ignorando o filtro de `status`)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET /tickets/:id - Detalhe (com histórico e comentários)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}"]
+            },
+            "description": "REQUESTER só vê o próprio chamado (403 se tentar ver de outro solicitante). A resposta já vem com `comments` e `statusHistories` embutidos (em ordem cronológica crescente) — não existe endpoint separado pra histórico de status; ele é criado automaticamente pelo service a cada mudança de `status`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": {\n    \"id\": 1,\n    \"title\": \"Sem acesso à internet no setor financeiro\",\n    \"description\": \"Desde hoje de manhã os computadores do setor financeiro não conseguem acessar a internet nem a rede interna.\",\n    \"categoryId\": 1,\n    \"priority\": \"HIGH\",\n    \"classificationOrigin\": \"AI\",\n    \"status\": \"OPEN\",\n    \"requesterId\": 3,\n    \"assigneeId\": null,\n    \"category\": { \"id\": 1, \"name\": \"Rede\" },\n    \"requester\": { \"id\": 3, \"name\": \"Solicitante Um\", \"email\": \"solicitante1@helpdesk.com\" },\n    \"assignee\": null,\n    \"comments\": [\n      { \"id\": 1, \"ticketId\": 1, \"authorId\": 3, \"content\": \"Já reiniciamos o roteador e o problema continua.\", \"createdAt\": \"2026-08-15T07:15:00.000Z\", \"author\": { \"id\": 3, \"name\": \"Solicitante Um\" } }\n    ],\n    \"statusHistories\": [\n      { \"id\": 1, \"ticketId\": 1, \"changedById\": 3, \"previousStatus\": null, \"newStatus\": \"OPEN\", \"createdAt\": \"2026-08-15T07:00:00.000Z\" }\n    ]\n  }\n}"
+            },
+            {
+              "name": "403 Forbidden - Chamado de outro solicitante",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"messages\": [\"Você não tem permissão para ver este chamado.\"],\n  \"status\": 403\n}"
+            },
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"messages\": [\"Chamado não encontrado(a)\"],\n  \"status\": 404\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /tickets - Abrir chamado (IA classifica sozinha)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.data && json.data.id) pm.collectionVariables.set('ticket_id', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Internet caiu no setor financeiro\",\n  \"description\": \"Desde hoje de manhã ninguém do setor financeiro consegue acessar a internet, é urgente\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets"]
+            },
+            "description": "**Campos aceitos:** `title`, `description` (obrigatórios), `categoryId`, `priority`, `assigneeId` (opcionais). Não existem campos `requesterId`, `classificationOrigin`, `suggestedCategoryId`/`suggestedPriority` ou `status` no corpo — são todos calculados pelo service:\n- `requesterId` = usuário do token\n- `status` = sempre `OPEN` na criação\n- Se você **não** mandar `categoryId`/`priority`, a triagem automática (Gemini com fallback pra heurística por palavras-chave) sugere os dois e `classificationOrigin` vira `AI`\n- Se você mandar `categoryId`/`priority`, `classificationOrigin` vira `MANUAL` — mas a sugestão da IA continua sendo calculada e fica registrada em `suggestedCategoryId`/`suggestedPriority`, pra auditoria"
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": {\n    \"id\": 15,\n    \"title\": \"Internet caiu no setor financeiro\",\n    \"description\": \"Desde hoje de manhã ninguém do setor financeiro consegue acessar a internet, é urgente\",\n    \"categoryId\": 1,\n    \"suggestedCategoryId\": 1,\n    \"priority\": \"HIGH\",\n    \"suggestedPriority\": \"HIGH\",\n    \"classificationOrigin\": \"AI\",\n    \"status\": \"OPEN\",\n    \"requesterId\": 3,\n    \"assigneeId\": null,\n    \"createdAt\": \"2026-08-15T18:00:00.000-03:00\",\n    \"updatedAt\": \"2026-08-15T18:00:00.000-03:00\"\n  },\n  \"message\": \"Chamado criado(a) com sucesso\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /tickets - Abrir chamado (categoria/prioridade manual)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Preciso de acesso ao sistema financeiro\",\n  \"description\": \"Preciso de acesso ao módulo financeiro para conferência de notas fiscais\",\n  \"categoryId\": {{category_id}},\n  \"priority\": \"LOW\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets"]
+            },
+            "description": "Exemplo com classificação manual — `classificationOrigin` vai vir `MANUAL` na resposta, mesmo a IA tendo rodado por baixo pra popular `suggestedCategoryId`/`suggestedPriority`."
+          }
+        },
+        {
+          "name": "PUT /tickets/:id - Mover para EM ANDAMENTO + atribuir (ADMIN)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"assigneeId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}"]
+            },
+            "description": "Só ADMIN pode enviar `status`, `assigneeId`, `categoryId` ou `priority` — REQUESTER recebe 403 se tentar (mesmo no próprio chamado). Toda mudança de `status` gera um registro automático em `statusHistories`."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": { \"id\": 1, \"status\": \"IN_PROGRESS\", \"assigneeId\": 1 },\n  \"message\": \"Chamado atualizado(a) com sucesso\"\n}"
+            },
+            {
+              "name": "403 Forbidden - REQUESTER tentando alterar status/responsável",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"messages\": [\"Apenas ADMIN pode alterar status, responsável, categoria ou prioridade.\"],\n  \"status\": 403\n}"
+            }
+          ]
+        },
+        {
+          "name": "PUT /tickets/:id - Fechar chamado",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"CLOSED\"\n}" },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}"]
+            }
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": { \"id\": 1, \"status\": \"CLOSED\" },\n  \"message\": \"Chamado atualizado(a) com sucesso\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "PUT /tickets/:id - Tentar reabrir chamado FECHADO (bloqueado)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"OPEN\"\n}" },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}"]
+            },
+            "description": "Regra de negócio: chamado `CLOSED` não pode voltar pra nenhum outro status."
+          },
+          "response": [
+            {
+              "name": "422 Unprocessable",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "body": "{\n  \"messages\": [\"Não é permitido reabrir um chamado fechado.\"],\n  \"status\": 422\n}"
+            }
+          ]
+        },
+        {
+          "name": "DELETE /tickets/:id - Cancelar chamado",
+          "request": {
+            "method": "DELETE",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}"]
+            },
+            "description": "Soft delete (`deletedAt`). ADMIN cancela qualquer chamado; REQUESTER só o próprio (`TicketPolicy.delete`)."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"message\": \"Chamado deletado(a) com sucesso\",\n  \"data\": { \"id\": 15, \"deletedAt\": \"2026-08-15T19:00:00.000-03:00\" }\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Comentários (aninhados em Tickets)",
+      "item": [
+        {
+          "name": "GET /tickets/:ticketId/comments - Listar comentários",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}/comments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}", "comments"]
+            },
+            "description": "Não existe `/comments` como recurso independente — é sempre aninhado no chamado. Mesma regra de visibilidade do chamado pai (`TicketPolicy.view`): REQUESTER só vê comentários de chamado próprio."
+          },
+          "response": [
+            {
+              "name": "200 OK",
+              "status": "OK",
+              "code": 200,
+              "body": "{\n  \"data\": [\n    {\n      \"id\": 1,\n      \"ticketId\": 1,\n      \"authorId\": 3,\n      \"content\": \"Já reiniciamos o roteador e o problema continua.\",\n      \"createdAt\": \"2026-08-15T07:15:00.000-03:00\",\n      \"author\": { \"id\": 3, \"name\": \"Solicitante Um\", \"email\": \"solicitante1@helpdesk.com\" }\n    }\n  ]\n}"
+            }
+          ]
+        },
+        {
+          "name": "POST /tickets/:ticketId/comments - Adicionar comentário",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Estamos verificando com o provedor de internet, aguardem novidades.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}/comments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}", "comments"]
+            },
+            "description": "**Único campo aceito:** `content`. `ticketId` vem da URL e `authorId` vem do usuário autenticado — não fazem parte do corpo. Não existem endpoints de update/delete de comentário (são imutáveis)."
+          },
+          "response": [
+            {
+              "name": "201 Created",
+              "status": "Created",
+              "code": 201,
+              "body": "{\n  \"data\": {\n    \"id\": 5,\n    \"ticketId\": 1,\n    \"authorId\": 1,\n    \"content\": \"Estamos verificando com o provedor de internet, aguardem novidades.\",\n    \"createdAt\": \"2026-08-15T19:30:00.000-03:00\"\n  },\n  \"message\": \"Comentário adicionado com sucesso\"\n}"
+            },
+            {
+              "name": "422 Unprocessable - Comentário vazio",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "body": "{\n  \"messages\": [\"O comentário é obrigatório\"],\n  \"status\": 422\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "🧪 Fluxo Completo (Smoke Test)",
+      "description": "Execute em sequência pra validar o fluxo ponta a ponta:\n\n1. Login como REQUESTER (seed) → salva token\n2. Abrir chamado (IA classifica)\n3. Comentar no chamado\n4. Login como ADMIN (seed) → troca o token salvo\n5. Mover chamado para EM ANDAMENTO + atribuir responsável\n6. Resolver e fechar o chamado\n7. Tentar reabrir (deve dar 422)\n8. Conferir indicadores em tempo real",
+      "item": [
+        {
+          "name": "1. Login REQUESTER (seed) → salva token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) pm.collectionVariables.set('token', json.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"solicitante1@helpdesk.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "2. Abrir chamado",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.data && json.data.id) pm.collectionVariables.set('ticket_id', json.data.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Computador não inicializa - tela preta\",\n  \"description\": \"Meu computador de trabalho exibe tela preta após o logo do Windows. Já reiniciei 3 vezes.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets"]
+            }
+          }
+        },
+        {
+          "name": "3. Comentar no chamado",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"content\": \"Já tentei religar na tomada e trocar o cabo, continua sem ligar.\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}/comments",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}", "comments"]
+            }
+          }
+        },
+        {
+          "name": "4. Login ADMIN (seed) → troca o token salvo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "  const json = pm.response.json();",
+                  "  if (json.token) pm.collectionVariables.set('token', json.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin@helpdesk.com\",\n  \"password\": \"password123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "A partir daqui `{{token}}` é do ADMIN — necessário pros próximos passos (só ADMIN altera status/responsável)."
+          }
+        },
+        {
+          "name": "5. Mover para EM ANDAMENTO + atribuir",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\",\n  \"assigneeId\": 1\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}"]
+            }
+          }
+        },
+        {
+          "name": "6. Resolver e fechar",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"RESOLVED\"\n}" },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}"]
+            }
+          }
+        },
+        {
+          "name": "7. Tentar reabrir → 422 esperado",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"CLOSED\"\n}" },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/{{ticket_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "{{ticket_id}}"]
+            },
+            "description": "Aqui fechamos de verdade (RESOLVED → CLOSED é permitido). Rode este PUT de novo com `\"status\": \"OPEN\"` depois pra ver o 422 de reabertura bloqueada."
+          }
+        },
+        {
+          "name": "8. Conferir indicadores em tempo real",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "stats"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "⚠️ Cenários de Erro",
+      "item": [
+        {
+          "name": "404 - Chamado inexistente",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets/99999",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets", "99999"]
+            }
+          },
+          "response": [
+            {
+              "name": "404 Not Found",
+              "status": "Not Found",
+              "code": 404,
+              "body": "{\n  \"messages\": [\"Chamado não encontrado(a)\"],\n  \"status\": 404\n}"
+            }
+          ]
+        },
+        {
+          "name": "401 - Sem token",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets"]
+            }
+          },
+          "response": [
+            {
+              "name": "401 Unauthorized",
+              "status": "Unauthorized",
+              "code": 401,
+              "body": "{\n  \"messages\": [\"Token de autenticação não fornecido.\"],\n  \"status\": 401\n}"
+            }
+          ]
+        },
+        {
+          "name": "422 - Abrir chamado sem título",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"description\": \"Faltou o campo title, só isso aqui\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets"]
+            }
+          },
+          "response": [
+            {
+              "name": "422 Validation Error",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "body": "{\n  \"messages\": [\"title: O título é obrigatório\"],\n  \"errors\": [{ \"field\": \"title\", \"message\": \"O título é obrigatório\", \"code\": \"invalid_type\" }],\n  \"status\": 422,\n  \"type\": \"ValidationError\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "422 - Prioridade fora do enum",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Teste de prioridade inválida\",\n  \"description\": \"Valor de priority não aceito pelo enum\",\n  \"priority\": \"URGENTE\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets"]
+            }
+          },
+          "response": [
+            {
+              "name": "422 Validation Error - Enum inválido",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "body": "{\n  \"messages\": [\"priority: Invalid enum value. Expected 'LOW' | 'MEDIUM' | 'HIGH', received 'URGENTE'\"],\n  \"status\": 422,\n  \"type\": \"ValidationError\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "409 - E-mail duplicado no cadastro",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Admin Duplicado\",\n  \"email\": \"admin@helpdesk.com\",\n  \"password\": \"Senha@1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "register"]
+            }
+          },
+          "response": [
+            {
+              "name": "409 Conflict",
+              "status": "Conflict",
+              "code": 409,
+              "body": "{\n  \"messages\": [\"Já existe um usuário cadastrado com este e-mail\"],\n  \"status\": 409\n}"
+            }
+          ]
+        },
+        {
+          "name": "422 - Domínio de e-mail fora de @helpdesk.com",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Fulano\",\n  \"email\": \"fulano@gmail.com\",\n  \"password\": \"Senha@1234\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "register"]
+            }
+          },
+          "response": [
+            {
+              "name": "422 Validation Error",
+              "status": "Unprocessable Entity",
+              "code": 422,
+              "body": "{\n  \"messages\": [\"O e-mail deve ser do domínio @helpdesk.com\"],\n  \"status\": 422\n}"
+            }
+          ]
+        },
+        {
+          "name": "403 - REQUESTER tentando criar categoria",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Authorization", "value": "Bearer {{token}}" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"name\": \"Categoria Proibida\"\n}" },
+            "url": {
+              "raw": "{{base_url}}/api/v1/categories",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "categories"]
+            },
+            "description": "Use um token de REQUESTER (ex.: login com `solicitante1@helpdesk.com`) pra ver o 403."
+          },
+          "response": [
+            {
+              "name": "403 Forbidden",
+              "status": "Forbidden",
+              "code": 403,
+              "body": "{\n  \"messages\": [\"Apenas ADMIN pode gerenciar categorias.\"],\n  \"status\": 403\n}"
+            }
+          ]
+        },
+        {
+          "name": "400 - Filtro com campo inexistente",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Authorization", "value": "Bearer {{token}}" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/tickets?campoInexistente=valor",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "tickets"],
+              "query": [{ "key": "campoInexistente", "value": "valor" }]
+            }
+          },
+          "response": [
+            {
+              "name": "400 Bad Request",
+              "status": "Bad Request",
+              "code": 400,
+              "body": "{\n  \"messages\": [\"O campo campoInexistente não existe\"],\n  \"status\": 400\n}"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
