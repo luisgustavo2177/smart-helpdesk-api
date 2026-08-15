@@ -1,16 +1,27 @@
+import type { HttpContext } from '@adonisjs/core/http'
 import Ticket from '#models/ticket'
 import TicketStatusHistory from '#models/ticket_status_history'
 import TicketValidator from '#validators/ticket_validator'
 import { TicketTriageService } from '#services/ticket_triage_service'
 import { AppError } from '#error/app_error'
+import { buildTicketReportWorkbook } from '#services/ticket_report_builder'
 import {
   BaseService,
   type IndexProps,
   type PreloadConfig,
+  type RelationOrderConfig,
   type ShowServiceProps,
   type StoreServiceProps,
   type UpdateServiceProps,
 } from './base_service.js'
+
+const TICKET_STATUSES = ['OPEN', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'] as const
+
+export type TicketStatsProps = {
+  filters?: Record<string, unknown>
+  search?: string
+  ctx?: HttpContext
+}
 
 export default class TicketService extends BaseService<typeof Ticket, TicketValidator> {
   protected defaultOrder = '-createdAt'
@@ -19,6 +30,36 @@ export default class TicketService extends BaseService<typeof Ticket, TicketVali
     { relation: 'category', fields: ['id', 'name'] },
     { relation: 'requester', fields: ['id', 'name', 'email'] },
     { relation: 'assignee', fields: ['id', 'name', 'email'] },
+  ]
+
+  /**
+   * `category`/`requester`/`assignee` não são colunas do próprio ticket (só
+   * os `*_id`), então ordenar a listagem por esses nomes exige um join com a
+   * tabela relacionada. `leftJoin` em todos porque `assignee_id` é nulável —
+   * `join` (inner) descartaria da listagem os chamados sem responsável.
+   */
+  protected relationOrderFields: RelationOrderConfig[] = [
+    {
+      field: 'category',
+      table: 'categories',
+      column: 'name',
+      foreignKey: 'category_id',
+      joinType: 'left',
+    },
+    {
+      field: 'requester',
+      table: 'users',
+      column: 'name',
+      foreignKey: 'requester_id',
+      joinType: 'left',
+    },
+    {
+      field: 'assignee',
+      table: 'users',
+      column: 'name',
+      foreignKey: 'assignee_id',
+      joinType: 'left',
+    },
   ]
 
   constructor() {
@@ -35,6 +76,76 @@ export default class TicketService extends BaseService<typeof Ticket, TicketVali
       ctx?.user && ctx.user.role !== 'ADMIN' ? { ...filters, requesterId: ctx.user.id } : filters
 
     return super.index({ page, limit, filters: scopedFilters, order, search, ctx })
+  }
+
+  /**
+   * Contagem de chamados por status (e o percentual de cada um sobre o
+   * total) respeitando os mesmos filtros/busca/escopo por papel da listagem
+   * — usado pelos cards de resumo do front, que não devem recalcular nada
+   * disso sozinhos.
+   */
+  async stats({ filters, search, ctx }: TicketStatsProps) {
+    const scopedFilters =
+      ctx?.user && ctx.user.role !== 'ADMIN' ? { ...filters, requesterId: ctx.user.id } : filters
+
+    const query = this.model.query()
+    this.applyFilters(query, scopedFilters as never)
+    this.applySearch(query, search)
+
+    // `.pojo()` faz o resultado pular a hidratação de model — e é por causa
+    // dela que o hook `beforeFetch` do soft-delete (adonis-lucid-soft-deletes)
+    // aplica o `whereNull('deleted_at')` normalmente. Sem esse hook, um
+    // agregado via `.pojo()` contaria chamados cancelados. Refazendo aqui à mão.
+    const rows = await query
+      .whereNull('deleted_at')
+      .select('status')
+      .count('* as count')
+      .groupBy('status')
+      .pojo<{ status: (typeof TICKET_STATUSES)[number]; count: string | number }>()
+
+    const countsByStatus = new Map(rows.map((row) => [row.status, Number(row.count)]))
+    const total = [...countsByStatus.values()].reduce((sum, count) => sum + count, 0)
+
+    return {
+      total,
+      statuses: TICKET_STATUSES.map((status) => {
+        const count = countsByStatus.get(status) ?? 0
+        return {
+          status,
+          count,
+          percentage: total > 0 ? Number(((count / total) * 100).toFixed(2)) : 0,
+        }
+      }),
+    }
+  }
+
+  /**
+   * Gera o .xlsx do relatório: a aba de chamados respeita todos os filtros
+   * ativos na tela (inclusive `status`, para exportar exatamente o que está
+   * sendo visto), ordenados pela data de criação; a aba de resumo ignora o
+   * filtro de `status` (mesma regra do `stats`), pois é a quebra por status.
+   */
+  async generateReport({ filters, search, ctx }: TicketStatsProps) {
+    const scopedFilters =
+      ctx?.user && ctx.user.role !== 'ADMIN' ? { ...filters, requesterId: ctx.user.id } : filters
+
+    const query = this.model
+      .query()
+      .preload('category', (q) => q.select(['id', 'name']))
+      .preload('requester', (q) => q.select(['id', 'name', 'email']))
+      .preload('assignee', (q) => q.select(['id', 'name', 'email']))
+
+    this.applyFilters(query, scopedFilters as never)
+    this.applySearch(query, search)
+    query.orderBy('created_at', 'asc')
+
+    const tickets = await query.exec()
+
+    const filtersWithoutStatus = { ...(filters ?? {}) } as Record<string, unknown>
+    delete filtersWithoutStatus.status
+    const stats = await this.stats({ filters: filtersWithoutStatus, search, ctx })
+
+    return buildTicketReportWorkbook(tickets, stats)
   }
 
   /** Detalhe do chamado já vem com o histórico completo (comentários + mudanças de status). */

@@ -6,6 +6,9 @@ import { middleware } from '#start/kernel'
 export default function ticketRouter() {
   router
     .group(() => {
+      router.get('tickets/stats', [TicketController, 'stats'])
+      router.get('tickets/report', [TicketController, 'report'])
+
       router
         .resource('tickets', TicketController)
         .only(['index', 'store', 'show', 'update', 'destroy'])

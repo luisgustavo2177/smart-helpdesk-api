@@ -64,6 +64,7 @@
     "@vinejs/vine": "^3.0.1",
     "adonis-lucid-soft-deletes": "^2.1.0",
     "dotenv": "^17.2.2",
+    "exceljs": "^4.4.0",
     "jsonwebtoken": "^9.0.3",
     "luxon": "^3.7.1",
     "pg": "^8.16.3",
