@@ -7,6 +7,8 @@ import Comment from '#models/comment'
 import TicketStatusHistory from '#models/ticket_status_history'
 
 export default class Ticket extends BaseModel {
+  static entityName = 'Chamado'
+
   @column({ isPrimary: true })
   declare id: number
 
